@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -20,13 +19,6 @@ func main() {
 	args := []string{"-nsl", "--no-site-file", "--no-splash"}
 
 	if (s.Mode() & os.ModeCharDevice) == 0 {
-		var buf bytes.Buffer
-		_, err := io.Copy(&buf, os.Stdin)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Could not copy stdin to temp file: %v", err)
-			os.Exit(1)
-		}
-
 		f, err := ioutil.TempFile("", "ec-")
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Could not create temp file: %v", err)
@@ -37,21 +29,22 @@ func main() {
 			// os.Remove(f.Name())
 		}()
 
-		buf.WriteTo(f)
+		_, err = io.Copy(f, os.Stdin)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Could not copy stdin to temp file: %v", err)
+			os.Exit(1)
+		}
+
 		args = append(args, f.Name())
 	}
 
 	args = append(args, os.Args[1:]...)
 	ecCmd := exec.Command(cmd, args...)
-	err = run(ecCmd)
-	if err != nil {
+	ecCmd.Stderr = os.Stderr
+	ecCmd.Stdout = os.Stdout
+
+	if err = ecCmd.Start(); err != nil {
 		fmt.Fprintf(os.Stderr, "Could run emacs: %v", err)
 		os.Exit(1)
 	}
-}
-
-func run(cmd *exec.Cmd) error {
-	cmd.Stderr = os.Stderr
-	cmd.Stdout = os.Stdout
-	return cmd.Start()
 }
